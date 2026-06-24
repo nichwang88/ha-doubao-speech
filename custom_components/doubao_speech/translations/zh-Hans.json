@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "豆包语音合成 (Doubao Speech)",
+        "description": "接入火山引擎豆包语音合成大模型 2.0。在火山引擎语音技术控制台（语音技术 → API Key）获取 API Key。",
+        "data": {
+          "api_key": "API Key",
+          "resource_id": "Resource ID（模型类别）",
+          "voice": "音色 (speaker)",
+          "speech_rate": "语速 (-50~100)",
+          "emotion": "默认语气/情感（可选）"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "鉴权失败，请检查 API Key 与 Resource ID。",
+      "cannot_connect": "无法连接豆包语音服务，请检查网络、音色与额度。",
+      "unknown": "出现未知错误。"
+    },
+    "abort": {
+      "already_configured": "该 API Key 已配置。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "豆包语音合成 选项",
+        "description": "修改凭据或默认参数。保存时会做一次简短的合成测试。",
+        "data": {
+          "api_key": "API Key",
+          "resource_id": "Resource ID（模型类别）",
+          "voice": "音色 (speaker)",
+          "speech_rate": "语速 (-50~100)",
+          "emotion": "默认语气/情感（可选）"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "鉴权失败，请检查 API Key 与 Resource ID。",
+      "cannot_connect": "无法连接豆包语音服务，请检查网络、音色与额度。",
+      "unknown": "出现未知错误。"
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Doubao Speech",
+        "description": "Connect to Volcengine Doubao TTS large-model 2.0. Get an API Key from the Volcengine speech console (语音技术 → API Key).",
+        "data": {
+          "api_key": "API Key",
+          "resource_id": "Resource ID (model family)",
+          "voice": "Voice (speaker)",
+          "speech_rate": "Speech rate (-50..100)",
+          "emotion": "Default tone/emotion (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Authentication failed. Check the API Key and Resource ID.",
+      "cannot_connect": "Cannot reach the Doubao TTS service. Check network, voice and quota.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This API Key is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Doubao Speech options",
+        "description": "Update credentials or defaults. A short test synthesis runs on save.",
+        "data": {
+          "api_key": "API Key",
+          "resource_id": "Resource ID (model family)",
+          "voice": "Voice (speaker)",
+          "speech_rate": "Speech rate (-50..100)",
+          "emotion": "Default tone/emotion (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Authentication failed. Check the API Key and Resource ID.",
+      "cannot_connect": "Cannot reach the Doubao TTS service. Check network, voice and quota.",
+      "unknown": "Unexpected error."
+    }
+  }
+}

@@ -1,0 +1,48 @@
+broadcast:
+  name: 广播 (Broadcast)
+  description: >-
+    用豆包语音合成大模型 2.0 把文本渲染成音频并在指定媒体播放器上播放。整段文本交给豆包按语义自动演绎情感；
+    可选 emotion 全局语气。先离线渲染再播放，规避 HomePod/AirPlay 的流式超时。
+  fields:
+    message:
+      name: 文本 (Message)
+      description: 要播报的文本。
+      required: true
+      example: 早上好，今天天气晴朗，适合出门。
+      selector:
+        text:
+          multiline: true
+    media_player_entity_id:
+      name: 媒体播放器 (Media player)
+      description: 一个或多个目标媒体播放器实体。
+      required: true
+      example: media_player.master_bedroom_homepod
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
+    voice:
+      name: 音色 (Voice)
+      description: 覆盖默认音色（speaker，如 zh_female_vv_uranus_bigtts）。
+      required: false
+      example: zh_female_vv_uranus_bigtts
+      selector:
+        text:
+    emotion:
+      name: 语气 (Emotion)
+      description: 一句自然语言语气描述，如「用温柔治愈的语气说话」。留空则由豆包按文本语义自动决定。
+      required: false
+      example: 用温柔治愈的语气说话
+      selector:
+        text:
+    speech_rate:
+      name: 语速 (Speech rate)
+      description: 语速，-50（最慢）到 100（最快），0 为正常。
+      required: false
+      example: 0
+      selector:
+        number:
+          min: -50
+          max: 100
+          step: 5
+          mode: slider
