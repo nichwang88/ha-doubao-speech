@@ -24,7 +24,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.TTS]
+PLATFORMS: list[Platform] = [Platform.TTS, Platform.STT]
 
 SERVICE_BROADCAST = "broadcast"
 BROADCAST_FILE = "doubao_broadcast.mp3"

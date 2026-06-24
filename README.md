@@ -2,9 +2,9 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
-把**火山引擎豆包语音合成大模型 2.0**（Doubao Seed-TTS 2.0）接入 Home Assistant 的自定义集成：
-提供标准 **TTS 引擎**（供语音助手 / `tts.speak` / 自动化使用）和一个 **`doubao_speech.broadcast` 广播服务**
-（离线渲染再播放，规避 HomePod / AirPlay 流式超时）。
+把**火山引擎豆包语音大模型**接入 Home Assistant 的自定义集成：**TTS 引擎**（语音合成大模型 2.0 / Seed-TTS 2.0，
+供语音助手 / `tts.speak` / 自动化使用）、**STT 引擎**（语音识别大模型 / 流式 ASR，供 Assist 语音助手听写）
+和一个 **`doubao_speech.broadcast` 广播服务**（离线渲染再播放，规避 HomePod / AirPlay 流式超时）。
 
 豆包 2.0 的核心优势是**原生语义理解 + 情感演绎**——把整段文本交给模型，它会按内容自动表达情感，
 无需外挂规则或 LLM 判断语气。
@@ -16,6 +16,7 @@
 ## 功能
 
 - ✅ **TTS 平台实体**（`Doubao TTS`）：`tts.speak`、Assist 语音助手、自动化均可调用
+- ✅ **STT 平台实体**（`Doubao STT`）：Assist 语音助手语音转文字，流式 ASR 大模型、自带标点 + ITN（如"二十五度"→"25度"）
 - ✅ **`doubao_speech.broadcast` 广播服务**：整段离线渲染 → `ffmpeg` 转 HomePod 安全 MP3（单声道 24k、去元数据）→ `play_media`
 - ✅ 每次调用可覆盖**音色 / 语速 / 语气**
 - ✅ 长文本按句**自动切分**（单请求 UTF-8 ≤ 1000 字节）后拼接
@@ -32,6 +33,16 @@
 | 请求头 | `X-Api-Request-Id: <uuid>`、`Content-Type: application/json` |
 | 响应 | NDJSON，逐行 `{"code":0,"data":"<base64 音频>"}`，解码拼接即音频 |
 | 情感 | `req_params.additions`（JSON 字符串）内 `context_texts[0]` 传一句语气描述 |
+
+## STT 接入原理（V3 流式 WebSocket）
+
+| 项目 | 值 |
+|---|---|
+| Endpoint | `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel` |
+| 鉴权头 | `X-Api-Key` + `X-Api-Resource-Id: volc.bigasr.sauc.duration` + `X-Api-Connect-Id` / `X-Api-Request-Id` / `X-Api-Sequence: -1` |
+| 协议 | 二进制分帧：`头(4B) + payload 长度(4B,大端) + gzip(payload)`；先发 full client request(JSON 配置)，再发 PCM 音频帧，末帧置 LAST flag |
+| 音频 | PCM 16-bit 单声道 16kHz（Assist 默认输出；集成自动剥 WAV 头）|
+| 返回 | `result.text`；开启 `enable_itn` + `enable_punc`（数字归一化 + 标点）|
 
 ## 安装
 

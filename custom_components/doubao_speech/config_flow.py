@@ -18,15 +18,18 @@ from .const import (
     CONF_EMOTION,
     CONF_RESOURCE_ID,
     CONF_SPEECH_RATE,
+    CONF_STT_RESOURCE_ID,
     CONF_VOICE,
     DEFAULT_EMOTION,
     DEFAULT_RESOURCE_ID,
     DEFAULT_SPEECH_RATE,
+    DEFAULT_STT_RESOURCE_ID,
     DEFAULT_VOICE,
     DOMAIN,
     MAX_SPEECH_RATE,
     MIN_SPEECH_RATE,
     RESOURCE_IDS,
+    STT_RESOURCE_IDS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,6 +56,10 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Optional(
                 CONF_EMOTION, default=defaults.get(CONF_EMOTION, DEFAULT_EMOTION)
             ): str,
+            vol.Optional(
+                CONF_STT_RESOURCE_ID,
+                default=defaults.get(CONF_STT_RESOURCE_ID, DEFAULT_STT_RESOURCE_ID),
+            ): vol.In(STT_RESOURCE_IDS),
         }
     )
 

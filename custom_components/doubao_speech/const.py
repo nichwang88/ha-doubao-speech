@@ -43,3 +43,18 @@ TTS_MAX_BYTES = 1000
 # support more. Language is informational for HA — the API infers it from text.
 SUPPORT_LANGUAGES = ["zh", "en", "ja", "ko", "fr", "de", "es", "pt", "id"]
 DEFAULT_LANGUAGE = "zh"
+
+# --- STT (语音识别大模型, V3 streaming WebSocket) -----------------------------
+# Binary protocol over wss; see api.py. Audio is PCM 16-bit mono.
+STT_API_URL = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel"
+
+CONF_STT_RESOURCE_ID = "stt_resource_id"
+# volc.bigasr.sauc.duration = 大模型流式语音识别（按时长计费，默认，verified）
+# volc.seedasr.sauc.duration = Seed ASR 流式
+STT_RES_BIGASR = "volc.bigasr.sauc.duration"
+STT_RES_SEEDASR = "volc.seedasr.sauc.duration"
+STT_RESOURCE_IDS = [STT_RES_BIGASR, STT_RES_SEEDASR]
+DEFAULT_STT_RESOURCE_ID = STT_RES_BIGASR
+
+# STT input audio (HA Assist sends 16k 16-bit mono PCM/WAV).
+STT_SAMPLE_RATE = 16000

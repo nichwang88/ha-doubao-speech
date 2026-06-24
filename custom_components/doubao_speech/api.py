@@ -32,10 +32,13 @@ Errors arrive either flat (``{"code": 5..., "message": ...}``) or wrapped
 """
 from __future__ import annotations
 
+import asyncio
 import base64
+import gzip
 import json
 import logging
 import re
+import struct
 import uuid
 from typing import Iterable
 
@@ -44,6 +47,8 @@ import aiohttp
 from .const import (
     DEFAULT_FORMAT,
     DEFAULT_SAMPLE_RATE,
+    STT_API_URL,
+    STT_SAMPLE_RATE,
     TTS_API_URL,
     TTS_MAX_BYTES,
 )
@@ -255,3 +260,128 @@ def joined(parts: Iterable[bytes]) -> bytes:
     for p in parts:
         out += p
     return bytes(out)
+
+
+# ─── STT: 大模型流式语音识别 (V3 binary WebSocket) ────────────────────────────
+# Frame: header(4) + big-endian u32 payload length + (gzip) payload.
+# header = [ver<<4|hdrsize, msgtype<<4|flags, serial<<4|compress, 0x00]
+_ASR_PROTO_VER = 0b0001
+_ASR_HDR_SIZE = 0b0001
+_ASR_M_FULL_REQ = 0b0001
+_ASR_M_AUDIO = 0b0010
+_ASR_M_ERROR = 0b1111
+_ASR_F_NONE = 0b0000
+_ASR_F_LAST = 0b0010
+_ASR_S_NONE = 0b0000
+_ASR_S_JSON = 0b0001
+_ASR_C_GZIP = 0b0001
+
+
+def _asr_header(mtype: int, flags: int, serial: int, compress: int) -> bytes:
+    return bytes([
+        (_ASR_PROTO_VER << 4) | _ASR_HDR_SIZE,
+        (mtype << 4) | flags,
+        (serial << 4) | compress,
+        0x00,
+    ])
+
+
+def _asr_frame(header: bytes, payload: bytes) -> bytes:
+    return header + struct.pack(">I", len(payload)) + payload
+
+
+def _asr_parse(data: bytes):
+    """Parse one server frame -> ('resp', json, is_last) | ('error', code, msg)."""
+    mtype = (data[1] >> 4) & 0x0F
+    flags = data[1] & 0x0F
+    serial = (data[2] >> 4) & 0x0F
+    compress = data[2] & 0x0F
+    off = (data[0] & 0x0F) * 4
+    if mtype == _ASR_M_ERROR:
+        code = struct.unpack(">I", data[off:off + 4])[0]; off += 4
+        size = struct.unpack(">I", data[off:off + 4])[0]; off += 4
+        return ("error", code, data[off:off + size].decode("utf-8", "ignore"))
+    if flags & 0b0001:  # has sequence number
+        off += 4
+    size = struct.unpack(">I", data[off:off + 4])[0]; off += 4
+    payload = data[off:off + size]
+    if compress == _ASR_C_GZIP and payload:
+        payload = gzip.decompress(payload)
+    obj = json.loads(payload.decode("utf-8")) if serial == _ASR_S_JSON and payload else {}
+    return ("resp", obj, bool(flags & 0b0010))  # is_last
+
+
+def strip_wav_header(data: bytes) -> bytes:
+    """Return raw PCM from a WAV container; pass through if not a WAV."""
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        i = 12
+        while i + 8 <= len(data):
+            cid = data[i:i + 4]
+            size = int.from_bytes(data[i + 4:i + 8], "little")
+            if cid == b"data":
+                return data[i + 8:i + 8 + size] if size else data[i + 8:]
+            i += 8 + size + (size & 1)
+    return data
+
+
+async def recognize(
+    session: aiohttp.ClientSession,
+    api_key: str,
+    resource_id: str,
+    pcm: bytes,
+    sample_rate: int = STT_SAMPLE_RATE,
+    timeout: int = 30,
+) -> str:
+    """Recognise 16-bit mono PCM via streaming ASR. Returns the transcript.
+
+    Raises DoubaoAuthError / DoubaoError on failure.
+    """
+    if not pcm:
+        raise DoubaoError("空音频")
+    cid = str(uuid.uuid4())
+    headers = {
+        "X-Api-Key": api_key,
+        "X-Api-Resource-Id": resource_id,
+        "X-Api-Connect-Id": cid,
+        "X-Api-Request-Id": cid,
+        "X-Api-Sequence": "-1",
+    }
+    cfg = {
+        "user": {"uid": "home-assistant"},
+        "audio": {"format": "pcm", "codec": "raw", "rate": sample_rate,
+                  "bits": 16, "channel": 1},
+        "request": {"model_name": "bigmodel", "enable_itn": True, "enable_punc": True,
+                    "result_type": "full", "show_utterances": True},
+    }
+    final = ""
+    try:
+        async with asyncio.timeout(timeout):
+            async with session.ws_connect(STT_API_URL, headers=headers, max_msg_size=0) as ws:
+                req = gzip.compress(json.dumps(cfg).encode())
+                await ws.send_bytes(_asr_frame(
+                    _asr_header(_ASR_M_FULL_REQ, _ASR_F_NONE, _ASR_S_JSON, _ASR_C_GZIP), req))
+                step = 3200  # ~100ms @ 16kHz/16-bit/mono
+                for i in range(0, len(pcm), step):
+                    chunk = pcm[i:i + step]
+                    flags = _ASR_F_LAST if i + step >= len(pcm) else _ASR_F_NONE
+                    await ws.send_bytes(_asr_frame(
+                        _asr_header(_ASR_M_AUDIO, flags, _ASR_S_NONE, _ASR_C_GZIP),
+                        gzip.compress(chunk)))
+                    await asyncio.sleep(0.01)
+                while True:
+                    msg = await ws.receive()
+                    if msg.type == aiohttp.WSMsgType.BINARY:
+                        kind, a, b = _asr_parse(msg.data)
+                        if kind == "error":
+                            _raise_for_error(a, b)
+                        text = (a.get("result") or {}).get("text", "")
+                        if text:
+                            final = text
+                        if b:  # is_last
+                            return final
+                    elif msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED,
+                                      aiohttp.WSMsgType.ERROR):
+                        return final
+    except asyncio.TimeoutError as err:
+        raise DoubaoError("ASR 识别超时") from err
+    return final
