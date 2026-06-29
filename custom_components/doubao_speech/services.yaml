@@ -82,8 +82,8 @@ audio_broadcast:
         text:
           multiline: true
     voice:
-      name: 回退音色 (Fallback voice)
-      description: 回退到普通 TTS 时使用的音色。
+      name: 音色 / 回退音色 (Voice)
+      description: 音频生成使用的 speaker；生成失败回退到普通 TTS 时也使用同一音色。
       required: false
       example: zh_female_vv_uranus_bigtts
       selector:
@@ -128,3 +128,32 @@ audio_broadcast:
           max: 100
           step: 5
           mode: slider
+    use_builtin_chime_reference:
+      name: 使用内置声标参考 (Built-in chime reference)
+      description: 使用一段内置短提示音作为引用音频，帮助音频生成在开头做出更稳定的声标。
+      required: false
+      default: false
+      selector:
+        boolean:
+    reference_audio_data:
+      name: 引用音频 Base64 (Reference audio data)
+      description: 可选，引用音频的 base64 数据。适合提供自定义声标或风格参考。
+      required: false
+      selector:
+        text:
+          multiline: true
+    reference_audio_url:
+      name: 引用音频 URL (Reference audio URL)
+      description: 可选，引用音频的可访问 URL。
+      required: false
+      example: https://example.com/chime.mp3
+      selector:
+        text:
+    reference_audio_format:
+      name: 引用音频格式 (Reference audio format)
+      description: 引用音频格式，如 mp3、wav、ogg_opus、pcm。
+      required: false
+      default: mp3
+      example: wav
+      selector:
+        text:

@@ -35,11 +35,14 @@ from __future__ import annotations
 import asyncio
 import base64
 import gzip
+import io
 import json
 import logging
+import math
 import re
 import struct
 import uuid
+import wave
 from typing import Iterable
 
 import aiohttp
@@ -59,6 +62,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # code == 0 -> audio chunk; code == 20000000 -> success/end-of-stream marker.
 _SUCCESS_CODES = (0, 20000000)
+_BUILTIN_CHIME_REF: str | None = None
 
 # Friendly mapping for the common failure messages the API returns.
 _ERROR_HINTS = {
@@ -112,6 +116,35 @@ def build_headers(api_key: str, resource_id: str) -> dict[str, str]:
         "X-Api-Request-Id": str(uuid.uuid4()),
         "Content-Type": "application/json",
     }
+
+
+def _builtin_chime_reference() -> str:
+    """Return a tiny WAV chime reference as base64 for seed-audio sound marks."""
+    global _BUILTIN_CHIME_REF
+    if _BUILTIN_CHIME_REF:
+        return _BUILTIN_CHIME_REF
+
+    sample_rate = 24000
+    duration = 0.72
+    frames = bytearray()
+    for i in range(int(duration * sample_rate)):
+        t = i / sample_rate
+        envelope = min(1.0, i / 1200) * max(0.0, 1.0 - i / (duration * sample_rate))
+        tone = (
+            math.sin(2 * math.pi * 880 * t) * 0.32
+            + math.sin(2 * math.pi * 1320 * t) * 0.12
+        )
+        sample = int(envelope * tone * 32767)
+        frames.extend(struct.pack("<h", sample))
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(bytes(frames))
+    _BUILTIN_CHIME_REF = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return _BUILTIN_CHIME_REF
 
 
 def build_body(
@@ -260,9 +293,14 @@ async def synthesize_audio_generation(
     session: aiohttp.ClientSession,
     api_key: str,
     prompt: str,
+    speaker: str | None = None,
     speech_rate: int = 0,
     pitch_rate: int = 0,
     loudness_rate: int = 0,
+    reference_audio_data: str | None = None,
+    reference_audio_url: str | None = None,
+    reference_audio_format: str = "mp3",
+    use_builtin_chime_reference: bool = False,
     timeout: int = 150,
 ) -> bytes:
     """Generate a complete audio scene with Doubao seed-audio-1.0.
@@ -287,6 +325,24 @@ async def synthesize_audio_generation(
             "loudness_rate": int(loudness_rate),
         },
     }
+    if speaker:
+        body["speaker"] = speaker
+
+    references = []
+    if use_builtin_chime_reference and not reference_audio_data and not reference_audio_url:
+        reference_audio_data = _builtin_chime_reference()
+        reference_audio_format = "wav"
+    if reference_audio_data:
+        references.append(
+            {"audio_data": reference_audio_data, "format": reference_audio_format}
+        )
+    if reference_audio_url:
+        references.append(
+            {"audio_url": reference_audio_url, "format": reference_audio_format}
+        )
+    if references:
+        body["references"] = references
+
     headers = {
         "X-Api-Key": api_key,
         "X-Api-Request-Id": str(uuid.uuid4()),

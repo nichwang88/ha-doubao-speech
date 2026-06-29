@@ -55,6 +55,8 @@
 | 鉴权头 | `X-Api-Key: <API Key>`（新版控制台）|
 | 模型 | `seed-audio-1.0` |
 | 输入 | `text_prompt`，用自然语言描述完整音频场景和要播报的文字 |
+| 音色 | 可传 `speaker`，与普通 TTS 的 `voice` 字段共用 speaker ID |
+| 参考 | 可传 `references`，支持引用音频的 `audio_data` / `audio_url`，集成也提供内置短声标引用 |
 | 输出 | `audio` base64 或短时效 `url`；集成会立即下载音频并保存到 `/local/doubao_audio_broadcast.mp3` |
 
 > 该服务偏“音频生成”，适合短场景、提示音、轻氛围和特殊播报；日常稳定播报仍建议优先使用
@@ -132,7 +134,14 @@ data:
     生成一段中文早间电台音频场景。开头两声轻柔提示音，然后进入极低音量温暖氛围铺底。
     第3秒开始温暖女声播报，声音清晰，音乐不能盖过人声。请播报：早上好，今天天气晴朗。
   fallback_message: "早上好，今天天气晴朗。"
+  # voice 会作为 seed-audio speaker 使用；失败回退到普通 TTS 时也复用。
   voice: zh_female_vv_uranus_bigtts
+  # 可选：用内置短提示音作为引用音频，让开场声标更稳定。
+  use_builtin_chime_reference: true
+  # 可选：自定义引用音频（二选一），同时设置格式。
+  # reference_audio_url: https://example.com/chime.mp3
+  # reference_audio_data: <base64>
+  # reference_audio_format: mp3
   speech_rate: 0
   pitch_rate: 0
   loudness_rate: 0

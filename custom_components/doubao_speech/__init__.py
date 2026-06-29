@@ -55,6 +55,10 @@ AUDIO_BROADCAST_SCHEMA = vol.Schema(
         vol.Optional(CONF_SPEECH_RATE, default=0): vol.Coerce(int),
         vol.Optional("pitch_rate", default=0): vol.Coerce(int),
         vol.Optional("loudness_rate", default=0): vol.Coerce(int),
+        vol.Optional("reference_audio_data"): cv.string,
+        vol.Optional("reference_audio_url"): cv.string,
+        vol.Optional("reference_audio_format", default="mp3"): cv.string,
+        vol.Optional("use_builtin_chime_reference", default=False): cv.boolean,
     }
 )
 
@@ -225,13 +229,25 @@ def _make_audio_broadcast_handler(hass: HomeAssistant):
         speech_rate = call.data.get(CONF_SPEECH_RATE, 0)
         pitch_rate = call.data.get("pitch_rate", 0)
         loudness_rate = call.data.get("loudness_rate", 0)
+        speaker = call.data.get(CONF_VOICE)
+        reference_audio_data = call.data.get("reference_audio_data")
+        reference_audio_url = call.data.get("reference_audio_url")
+        reference_audio_format = call.data.get("reference_audio_format", "mp3")
+        use_builtin_chime_reference = call.data.get(
+            "use_builtin_chime_reference", False
+        )
 
         try:
             audio = await entity.async_generate_audio_scene(
                 prompt,
+                speaker=speaker,
                 speech_rate=speech_rate,
                 pitch_rate=pitch_rate,
                 loudness_rate=loudness_rate,
+                reference_audio_data=reference_audio_data,
+                reference_audio_url=reference_audio_url,
+                reference_audio_format=reference_audio_format,
+                use_builtin_chime_reference=use_builtin_chime_reference,
             )
         except api.DoubaoError as err:
             _LOGGER.error("doubao_speech.audio_broadcast: synth failed: %s", err)

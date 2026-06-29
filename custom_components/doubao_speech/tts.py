@@ -126,9 +126,14 @@ class DoubaoTTSEntity(TextToSpeechEntity):
     async def async_generate_audio_scene(
         self,
         prompt: str,
+        speaker: str | None = None,
         speech_rate: int = 0,
         pitch_rate: int = 0,
         loudness_rate: int = 0,
+        reference_audio_data: str | None = None,
+        reference_audio_url: str | None = None,
+        reference_audio_format: str = "mp3",
+        use_builtin_chime_reference: bool = False,
     ) -> bytes:
         """Generate a complete audio scene via seed-audio-1.0."""
         session = async_get_clientsession(self.hass)
@@ -136,9 +141,14 @@ class DoubaoTTSEntity(TextToSpeechEntity):
             session,
             self._api_key,
             prompt,
+            speaker or self._default_voice,
             speech_rate,
             pitch_rate,
             loudness_rate,
+            reference_audio_data,
+            reference_audio_url,
+            reference_audio_format,
+            use_builtin_chime_reference,
         )
 
     async def async_get_tts_audio(
