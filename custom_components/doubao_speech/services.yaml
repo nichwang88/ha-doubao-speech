@@ -73,6 +73,28 @@ audio_broadcast:
         entity:
           domain: media_player
           multiple: true
+    fallback_message:
+      name: 回退文本 (Fallback message)
+      description: 音频生成失败时，使用普通 TTS 2.0 播放的文本。留空则失败时只写日志。
+      required: false
+      example: 早上好，今天多云，适合出门。
+      selector:
+        text:
+          multiline: true
+    voice:
+      name: 回退音色 (Fallback voice)
+      description: 回退到普通 TTS 时使用的音色。
+      required: false
+      example: zh_female_vv_uranus_bigtts
+      selector:
+        text:
+    emotion:
+      name: 回退语气 (Fallback emotion)
+      description: 回退到普通 TTS 时使用的语气描述。
+      required: false
+      example: 用温暖明亮、有活力的语气说话
+      selector:
+        text:
     speech_rate:
       name: 语速 (Speech rate)
       description: 语速，-50（0.5x）到 100（2x），0 为正常。

@@ -49,6 +49,9 @@ AUDIO_BROADCAST_SCHEMA = vol.Schema(
         vol.Required("media_player_entity_id"): vol.All(
             cv.ensure_list, [cv.entity_id]
         ),
+        vol.Optional("fallback_message"): cv.string,
+        vol.Optional(CONF_VOICE): cv.string,
+        vol.Optional(CONF_EMOTION): cv.string,
         vol.Optional(CONF_SPEECH_RATE, default=0): vol.Coerce(int),
         vol.Optional("pitch_rate", default=0): vol.Coerce(int),
         vol.Optional("loudness_rate", default=0): vol.Coerce(int),
@@ -232,7 +235,22 @@ def _make_audio_broadcast_handler(hass: HomeAssistant):
             )
         except api.DoubaoError as err:
             _LOGGER.error("doubao_speech.audio_broadcast: synth failed: %s", err)
-            return
+            fallback_message = call.data.get("fallback_message")
+            if not fallback_message:
+                return
+            try:
+                audio = await entity.async_synthesize(
+                    fallback_message,
+                    call.data.get(CONF_VOICE),
+                    call.data.get(CONF_SPEECH_RATE),
+                    call.data.get(CONF_EMOTION),
+                )
+            except api.DoubaoError as fallback_err:
+                _LOGGER.error(
+                    "doubao_speech.audio_broadcast: fallback synth failed: %s",
+                    fallback_err,
+                )
+                return
 
         audio = await _to_homepod_mp3(hass, audio)
         if not audio:

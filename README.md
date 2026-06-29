@@ -131,6 +131,8 @@ data:
   prompt: >-
     生成一段中文早间电台音频场景。开头两声轻柔提示音，然后进入极低音量温暖氛围铺底。
     第3秒开始温暖女声播报，声音清晰，音乐不能盖过人声。请播报：早上好，今天天气晴朗。
+  fallback_message: "早上好，今天天气晴朗。"
+  voice: zh_female_vv_uranus_bigtts
   speech_rate: 0
   pitch_rate: 0
   loudness_rate: 0
