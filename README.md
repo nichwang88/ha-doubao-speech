@@ -5,6 +5,8 @@
 把**火山引擎豆包语音大模型**接入 Home Assistant 的自定义集成：**TTS 引擎**（语音合成大模型 2.0 / Seed-TTS 2.0，
 供语音助手 / `tts.speak` / 自动化使用）、**STT 引擎**（语音识别大模型 / 流式 ASR，供 Assist 语音助手听写）
 和一个 **`doubao_speech.broadcast` 广播服务**（离线渲染再播放，规避 HomePod / AirPlay 流式超时）。
+另提供实验性的 **`doubao_speech.audio_broadcast` 音频生成广播服务**，用于 Doubao 音频生成 1.0
+的小剧场、提示音和氛围播报。
 
 豆包 2.0 的核心优势是**原生语义理解 + 情感演绎**——把整段文本交给模型，它会按内容自动表达情感，
 无需外挂规则或 LLM 判断语气。
@@ -18,6 +20,7 @@
 - ✅ **TTS 平台实体**（`Doubao TTS`）：`tts.speak`、Assist 语音助手、自动化均可调用
 - ✅ **STT 平台实体**（`Doubao STT`）：Assist 语音助手语音转文字，流式 ASR 大模型、自带标点 + ITN（如"二十五度"→"25度"）
 - ✅ **`doubao_speech.broadcast` 广播服务**：整段离线渲染 → `ffmpeg` 转 HomePod 安全 MP3（单声道 24k、去元数据）→ `play_media`
+- ✅ **`doubao_speech.audio_broadcast` 音频生成广播服务**：`seed-audio-1.0` 生成完整音频场景 → 下载为本地 MP3 → `play_media`
 - ✅ 每次调用可覆盖**音色 / 语速 / 语气**
 - ✅ 长文本按句**自动切分**（单请求 UTF-8 ≤ 1000 字节）后拼接
 - ✅ 支持官方 **2.0 / 1.0** 音色与**声音复刻**（`seed-icl-2.0`，`S_xxx`）
@@ -43,6 +46,19 @@
 | 协议 | 二进制分帧：`头(4B) + payload 长度(4B,大端) + gzip(payload)`；先发 full client request(JSON 配置)，再发 PCM 音频帧，末帧置 LAST flag |
 | 音频 | PCM 16-bit 单声道 16kHz（Assist 默认输出；集成自动剥 WAV 头）|
 | 返回 | `result.text`；开启 `enable_itn` + `enable_punc`（数字归一化 + 标点）|
+
+## 音频生成 1.0 接入原理（实验）
+
+| 项目 | 值 |
+|---|---|
+| Endpoint | `POST https://openspeech.bytedance.com/api/v3/tts/create` |
+| 鉴权头 | `X-Api-Key: <API Key>`（新版控制台）|
+| 模型 | `seed-audio-1.0` |
+| 输入 | `text_prompt`，用自然语言描述完整音频场景和要播报的文字 |
+| 输出 | `audio` base64 或短时效 `url`；集成会立即下载音频并保存到 `/local/doubao_audio_broadcast.mp3` |
+
+> 该服务偏“音频生成”，适合短场景、提示音、轻氛围和特殊播报；日常稳定播报仍建议优先使用
+> `doubao_speech.broadcast`。使用前请确认账号已开通音频生成资源 `volc.service_type.10074`。
 
 ## 安装
 
@@ -105,6 +121,20 @@ data:
   # speech_rate: 0
 ```
 不传 `emotion` 时，由豆包 2.0 按文本语义自动演绎情感。
+
+### 音频生成广播服务（实验）
+```yaml
+service: doubao_speech.audio_broadcast
+data:
+  media_player_entity_id:
+    - media_player.master_bedroom_homepod
+  prompt: >-
+    生成一段中文早间电台音频场景。开头两声轻柔提示音，然后进入极低音量温暖氛围铺底。
+    第3秒开始温暖女声播报，声音清晰，音乐不能盖过人声。请播报：早上好，今天天气晴朗。
+  speech_rate: 0
+  pitch_rate: 0
+  loudness_rate: 0
+```
 
 ## 排错
 

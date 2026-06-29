@@ -123,6 +123,24 @@ class DoubaoTTSEntity(TextToSpeechEntity):
             self._default_emotion if emotion is None else emotion,
         )
 
+    async def async_generate_audio_scene(
+        self,
+        prompt: str,
+        speech_rate: int = 0,
+        pitch_rate: int = 0,
+        loudness_rate: int = 0,
+    ) -> bytes:
+        """Generate a complete audio scene via seed-audio-1.0."""
+        session = async_get_clientsession(self.hass)
+        return await api.synthesize_audio_generation(
+            session,
+            self._api_key,
+            prompt,
+            speech_rate,
+            pitch_rate,
+            loudness_rate,
+        )
+
     async def async_get_tts_audio(
         self, message: str, language: str, options: dict[str, Any]
     ) -> TtsAudioType:

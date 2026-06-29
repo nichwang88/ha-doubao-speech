@@ -27,7 +27,9 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.TTS, Platform.STT]
 
 SERVICE_BROADCAST = "broadcast"
+SERVICE_AUDIO_BROADCAST = "audio_broadcast"
 BROADCAST_FILE = "doubao_broadcast.mp3"
+AUDIO_BROADCAST_FILE = "doubao_audio_broadcast.mp3"
 
 BROADCAST_SCHEMA = vol.Schema(
     {
@@ -38,6 +40,18 @@ BROADCAST_SCHEMA = vol.Schema(
         vol.Optional(CONF_VOICE): cv.string,
         vol.Optional(CONF_EMOTION): cv.string,
         vol.Optional(CONF_SPEECH_RATE): vol.Coerce(int),
+    }
+)
+
+AUDIO_BROADCAST_SCHEMA = vol.Schema(
+    {
+        vol.Required("prompt"): cv.string,
+        vol.Required("media_player_entity_id"): vol.All(
+            cv.ensure_list, [cv.entity_id]
+        ),
+        vol.Optional(CONF_SPEECH_RATE, default=0): vol.Coerce(int),
+        vol.Optional("pitch_rate", default=0): vol.Coerce(int),
+        vol.Optional("loudness_rate", default=0): vol.Coerce(int),
     }
 )
 
@@ -52,6 +66,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.services.async_register(
             DOMAIN, SERVICE_BROADCAST, _make_broadcast_handler(hass),
             schema=BROADCAST_SCHEMA,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_AUDIO_BROADCAST):
+        hass.services.async_register(
+            DOMAIN, SERVICE_AUDIO_BROADCAST, _make_audio_broadcast_handler(hass),
+            schema=AUDIO_BROADCAST_SCHEMA,
         )
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -70,8 +89,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not any(
             isinstance(v, dict) and v.get("tts_entity")
             for v in hass.data[DOMAIN].values()
-        ) and hass.services.has_service(DOMAIN, SERVICE_BROADCAST):
-            hass.services.async_remove(DOMAIN, SERVICE_BROADCAST)
+        ):
+            if hass.services.has_service(DOMAIN, SERVICE_BROADCAST):
+                hass.services.async_remove(DOMAIN, SERVICE_BROADCAST)
+            if hass.services.has_service(DOMAIN, SERVICE_AUDIO_BROADCAST):
+                hass.services.async_remove(DOMAIN, SERVICE_AUDIO_BROADCAST)
     return unload_ok
 
 
@@ -116,6 +138,37 @@ async def _to_homepod_mp3(hass: HomeAssistant, audio: bytes) -> bytes | None:
     return None
 
 
+async def _play_local_mp3(
+    hass: HomeAssistant,
+    audio: bytes,
+    filename: str,
+    media_players: list[str],
+    log_prefix: str,
+) -> None:
+    """Write MP3 bytes to `/local` and play them on the requested players."""
+    www = hass.config.path("www")
+    await hass.async_add_executor_job(lambda: os.makedirs(www, exist_ok=True))
+    out_path = os.path.join(www, filename)
+    await hass.async_add_executor_job(_write_file, out_path, audio)
+
+    try:
+        base = get_url(hass, prefer_internal=True, allow_external=True)
+    except Exception:  # noqa: BLE001
+        base = hass.config.internal_url or ""
+    url = f"{base}/local/{filename}?v={int(time.time())}"
+
+    await hass.services.async_call(
+        "media_player", "play_media",
+        {
+            "entity_id": media_players,
+            "media_content_id": url,
+            "media_content_type": "music",
+        },
+        blocking=False,
+    )
+    _LOGGER.debug("%s: playing %s", log_prefix, url)
+
+
 def _make_broadcast_handler(hass: HomeAssistant):
     """Build the broadcast service handler.
 
@@ -146,26 +199,51 @@ def _make_broadcast_handler(hass: HomeAssistant):
         if not audio:
             return
 
-        www = hass.config.path("www")
-        await hass.async_add_executor_job(lambda: os.makedirs(www, exist_ok=True))
-        out_path = os.path.join(www, BROADCAST_FILE)
-        await hass.async_add_executor_job(_write_file, out_path, audio)
+        await _play_local_mp3(
+            hass,
+            audio,
+            BROADCAST_FILE,
+            call.data["media_player_entity_id"],
+            "doubao_speech.broadcast",
+        )
+
+    return _handle
+
+
+def _make_audio_broadcast_handler(hass: HomeAssistant):
+    """Build the seed-audio-1.0 broadcast service handler."""
+    async def _handle(call: ServiceCall) -> None:
+        entity = _get_tts_entity(hass)
+        if entity is None:
+            _LOGGER.error("doubao_speech.audio_broadcast: no TTS entity configured")
+            return
+
+        prompt = call.data["prompt"]
+        speech_rate = call.data.get(CONF_SPEECH_RATE, 0)
+        pitch_rate = call.data.get("pitch_rate", 0)
+        loudness_rate = call.data.get("loudness_rate", 0)
 
         try:
-            base = get_url(hass, prefer_internal=True, allow_external=True)
-        except Exception:  # noqa: BLE001
-            base = hass.config.internal_url or ""
-        url = f"{base}/local/{BROADCAST_FILE}?v={int(time.time())}"
+            audio = await entity.async_generate_audio_scene(
+                prompt,
+                speech_rate=speech_rate,
+                pitch_rate=pitch_rate,
+                loudness_rate=loudness_rate,
+            )
+        except api.DoubaoError as err:
+            _LOGGER.error("doubao_speech.audio_broadcast: synth failed: %s", err)
+            return
 
-        await hass.services.async_call(
-            "media_player", "play_media",
-            {
-                "entity_id": call.data["media_player_entity_id"],
-                "media_content_id": url,
-                "media_content_type": "music",
-            },
-            blocking=False,
+        audio = await _to_homepod_mp3(hass, audio)
+        if not audio:
+            return
+
+        await _play_local_mp3(
+            hass,
+            audio,
+            AUDIO_BROADCAST_FILE,
+            call.data["media_player_entity_id"],
+            "doubao_speech.audio_broadcast",
         )
-        _LOGGER.debug("doubao_speech.broadcast: playing %s", url)
 
     return _handle

@@ -45,6 +45,8 @@ from typing import Iterable
 import aiohttp
 
 from .const import (
+    AUDIO_GENERATION_API_URL,
+    AUDIO_GENERATION_MODEL,
     DEFAULT_FORMAT,
     DEFAULT_SAMPLE_RATE,
     STT_API_URL,
@@ -252,6 +254,82 @@ async def synthesize(
                 _raise_for_error(code, message)
             audio += part
     return bytes(audio)
+
+
+async def synthesize_audio_generation(
+    session: aiohttp.ClientSession,
+    api_key: str,
+    prompt: str,
+    speech_rate: int = 0,
+    pitch_rate: int = 0,
+    loudness_rate: int = 0,
+    timeout: int = 150,
+) -> bytes:
+    """Generate a complete audio scene with Doubao seed-audio-1.0.
+
+    This endpoint can render non-TTS audio elements when the prompt is written
+    as an audio-scene description. It returns either base64 audio or a short
+    lived URL; the URL is downloaded immediately so HA can serve a stable local
+    `/local/...` file to HomePod/AirPlay.
+    """
+    prompt = prompt.strip()
+    if not prompt:
+        raise DoubaoError("音频生成提示词不能为空")
+
+    body = {
+        "model": AUDIO_GENERATION_MODEL,
+        "text_prompt": prompt,
+        "audio_config": {
+            "format": DEFAULT_FORMAT,
+            "sample_rate": DEFAULT_SAMPLE_RATE,
+            "speech_rate": int(speech_rate),
+            "pitch_rate": int(pitch_rate),
+            "loudness_rate": int(loudness_rate),
+        },
+    }
+    headers = {
+        "X-Api-Key": api_key,
+        "X-Api-Request-Id": str(uuid.uuid4()),
+        "Content-Type": "application/json",
+    }
+    async with session.post(
+        AUDIO_GENERATION_API_URL,
+        json=body,
+        headers=headers,
+        timeout=aiohttp.ClientTimeout(total=timeout),
+    ) as resp:
+        raw = await resp.text()
+        try:
+            obj = json.loads(raw)
+        except json.JSONDecodeError as err:
+            raise DoubaoError(f"音频生成返回非 JSON: HTTP {resp.status}") from err
+
+        code = obj.get("code")
+        message = obj.get("message")
+        if resp.status != 200 or (code not in (None, 0)):
+            _LOGGER.error("doubao audio generation: HTTP %s: %s", resp.status, raw[:300])
+            _raise_for_error(code, message or f"HTTP {resp.status}")
+
+        audio_b64 = obj.get("audio")
+        if audio_b64:
+            try:
+                return base64.b64decode(audio_b64)
+            except (ValueError, TypeError) as err:
+                raise DoubaoError("音频生成返回了无效 base64 音频") from err
+
+        audio_url = obj.get("url")
+        if audio_url:
+            async with session.get(
+                audio_url,
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as audio_resp:
+                if audio_resp.status != 200:
+                    raise DoubaoError(f"下载音频生成结果失败: HTTP {audio_resp.status}")
+                data = await audio_resp.read()
+                if data:
+                    return data
+
+        raise DoubaoError("音频生成返回为空")
 
 
 def joined(parts: Iterable[bytes]) -> bytes:

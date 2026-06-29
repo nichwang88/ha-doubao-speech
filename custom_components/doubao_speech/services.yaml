@@ -46,3 +46,63 @@ broadcast:
           max: 100
           step: 5
           mode: slider
+
+audio_broadcast:
+  name: 音频生成广播 (Audio generation broadcast)
+  description: >-
+    用 Doubao 音频生成 1.0 根据自然语言音频场景提示词生成完整 MP3，并在指定媒体播放器上播放。
+    适合临时小剧场、提示音、轻氛围等特殊播报。生成后会保存到 /local/doubao_audio_broadcast.mp3 再播放。
+  fields:
+    prompt:
+      name: 音频场景提示词 (Prompt)
+      description: >-
+        描述完整音频场景和要播报的文字。若需要提示音或背景氛围，建议明确写出时间结构和人声内容。
+      required: true
+      example: >-
+        生成一段中文早间电台音频场景。开头两声轻柔提示音，然后低音量温暖氛围铺底，
+        第3秒开始女声播报：早上好，主人。
+      selector:
+        text:
+          multiline: true
+    media_player_entity_id:
+      name: 媒体播放器 (Media player)
+      description: 一个或多个目标媒体播放器实体。
+      required: true
+      example: media_player.master_bedroom_homepod
+      selector:
+        entity:
+          domain: media_player
+          multiple: true
+    speech_rate:
+      name: 语速 (Speech rate)
+      description: 语速，-50（0.5x）到 100（2x），0 为正常。
+      required: false
+      default: 0
+      selector:
+        number:
+          min: -50
+          max: 100
+          step: 5
+          mode: slider
+    pitch_rate:
+      name: 音高 (Pitch rate)
+      description: 音高，-12 到 12，0 为正常。
+      required: false
+      default: 0
+      selector:
+        number:
+          min: -12
+          max: 12
+          step: 1
+          mode: slider
+    loudness_rate:
+      name: 响度 (Loudness rate)
+      description: 响度，-50 到 100，0 为正常。
+      required: false
+      default: 0
+      selector:
+        number:
+          min: -50
+          max: 100
+          step: 5
+          mode: slider

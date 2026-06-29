@@ -6,6 +6,11 @@ DOMAIN = "doubao_speech"
 # streaming endpoint. Returns NDJSON; see api.py for the wire format.
 TTS_API_URL = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
 
+# Volcengine Doubao audio generation 1.0. This is not a drop-in TTS endpoint:
+# it accepts a natural-language audio prompt and returns a complete audio clip.
+AUDIO_GENERATION_API_URL = "https://openspeech.bytedance.com/api/v3/tts/create"
+AUDIO_GENERATION_MODEL = "seed-audio-1.0"
+
 # --- Config keys -------------------------------------------------------------
 CONF_API_KEY = "api_key"
 CONF_RESOURCE_ID = "resource_id"
